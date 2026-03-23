@@ -1,0 +1,1406 @@
+//#include "setup/settings.txt"
+login("admin","123456");
+DATA_DIR="E:/DolphinDB_Win64_V3.00.5/CtpPlugintest" //E:/DolphinDB_Win64_V3.00.5/CtpPlugintest/ids20260311.csv
+CtpIP = "182.254.243.31"
+CtpPORT = 40011 //normal：30012；7*24：40011
+userID = "223995";
+password = "dry20030219!";
+brokerID = "9999";
+appID = "client_ddbctpplgn_1.0";
+authCode = "CKSXNQN22ZM7VE8X00";
+//test_ctp_persistence_table
+// account for queryInstrument 
+queryInstrumentIp = "182.254.243.31"
+queryInstrumentPort = 40001 //normal：30002；7*24：40001
+qUserID = "223995"
+qPassword = "dry20030219!"
+qBrokerID = "9999"
+qAppID = "simnow_client_test"
+qAuthCode = "0000000000000000"
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+try {
+    loadPlugin("E:/DolphinDB_Win64_V3.00.5/server/plugins/CtpWin/CtpWin.txt")
+} catch (ex) {
+    print(ex)
+}
+go
+
+handle = ctp::connect(CtpIP, CtpPORT)
+
+//注释掉：因为没有这个函数loadIPCInMemoryTable
+//@testing:case = "prepare"
+//def get_IPC_table_data(table_name){
+	//ipc_table = loadIPCInMemoryTable(table_name)
+	//for(i in 1..20){
+		//sleep(1000)
+		//tmp_t = readIPCInMemoryTable(ipc_table)
+		//if(tmp_t.size()>0){
+			//return tmp_t 
+		//}
+	//}
+//}
+
+def wait_read_job_successful(jobId){
+	for(i in 1..20){
+		sleep(1000)
+		end_time = (exec endTime from getJobStatus(jobId))[0]
+		if(!isNull(end_time)){
+			return getJobReturn(jobId)
+		}
+	}
+	throw("Read Timeout!")
+}
+
+// getSchema exception （全部通过测试√）
+@testing:case="test_ctp_getSchema_type_int", exception=1
+ctp::getSchema(handle,1)
+
+@testing:case="test_ctp_getSchema_type_void", exception=1
+ctp::getSchema(handle,NULL)
+
+@testing:case="test_ctp_getSchema_type_date", exception=1
+ctp::getSchema(handle,2013.06.13)
+
+@testing:case="test_ctp_getSchema_type_double", exception=1
+ctp::getSchema(handle,3.14)
+
+@testing:case="test_ctp_getSchema_type_vector_int", exception=1
+ctp::getSchema(handle,[1])
+
+@testing:case="test_ctp_getSchema_type_vector_string", exception=1
+ctp::getSchema(handle,["marketData"])
+
+@testing:case="test_ctp_getSchema_type_any_int", exception=1
+ctp::getSchema(handle,(1))
+
+@testing:case="test_ctp_getSchema_type_empty_array", exception=1
+ctp::getSchema(handle,string([]))
+
+@testing:case="test_ctp_getSchema_invaild_value", exception=1 
+ctp::getSchema(handle,"InvalidValue")
+
+// connect exception: IP （全部通过测试√）
+@testing:case="test_ctp_connect_IP_int", exception=1
+ctp::close(handle)
+handle = ctp::connect(1, CtpPORT)
+
+@testing:case="test_ctp_connect_IP_void", exception=1
+handle = ctp::connect(NULL, CtpPORT)
+
+@testing:case="test_ctp_connect_CtpIP_date", exception=1
+handle = ctp::connect(2010.01.01, CtpPORT)
+
+@testing:case="test_ctp_connect_CtpIP_vector_int", exception=1
+handle = ctp::connect([1], CtpPORT)
+
+@testing:case="test_ctp_connect_CtpIP_vector_string"
+handle = ctp::connect([CtpIP], CtpPORT)
+res = ctp::close(handle)
+assert 1, res == "success"
+
+@testing:case="test_ctp_connect_CtpIP_wrong_value", exception=1
+handle = ctp::connect("WrongCtpIP", CtpPORT)
+
+@testing:case="test_ctp_connect_CtpIP_wrong_value_2", exception=1
+handle = ctp::connect("127.0.0.1", CtpPORT)
+
+@testing:case="test_ctp_connect_CtpIP_wrong_value_3", exception=1
+handle = ctp::connect(string(NULL), CtpPORT)
+
+// connect exception: CtpPORT (全部通过测试√)
+@testing:case="test_ctp_connect_CtpPORT_string", exception=1
+handle = ctp::connect(CtpIP, "1")
+
+@testing:case="test_ctp_connect_CtpPORT_void", exception=1
+handle = ctp::connect(CtpIP, NULL)
+
+@testing:case="test_ctp_connect_CtpPORT_vector_string", exception=1
+handle = ctp::connect(CtpIP, ["1"])
+
+@testing:case="test_ctp_connect_CtpPORT_vector_port"
+handle = ctp::connect(CtpIP, [CtpPORT])
+res = ctp::close(handle)
+assert 1, res == "success"
+
+@testing:case="test_ctp_connect_CtpPORT_wrong_port", exception=1
+WrongCtpPORT = 1
+handle = ctp::connect(CtpIP, WrongCtpPORT)
+
+@testing:case="test_ctp_connect_CtpPORT_port_int_NULL", exception=1
+WrongCtpPORT = int(NULL)
+handle = ctp::connect(CtpIP, WrongCtpPORT)
+
+@testing:case="test_ctp_connect_CtpPORT_port_int_-1", exception=1
+WrongCtpPORT = -1
+handle = ctp::connect(CtpIP, WrongCtpPORT)
+
+/*
+@testing:case="test_ctp_connect_CtpPORT_ddb_port", exception=1
+WrongCtpPORT = 8848
+handle = ctp::connect("127.0.0.1", WrongCtpPORT, dict(["marketData"], [marketDataTable]))
+*/
+
+// connect exception: type2Table
+// @testing:case="test_ctp_connect_type2Table_int", exception=1
+// handle = ctp::connect(CtpIP, CtpPORT, 1)
+
+// @testing:case="test_ctp_connect_type2Table_string", exception=1
+// handle = ctp::connect(CtpIP, CtpPORT, "huoyanquan")
+
+// @testing:case="test_ctp_connect_type2Table_void", exception=1
+// handle = ctp::connect(CtpIP, CtpPORT, NULL)
+
+// @testing:case="test_ctp_connect_type2Table_matrix", exception=1
+// handle = ctp::connect(CtpIP, CtpPORT, matrix(INT,3,2, ,1))
+
+// connect exception: type2Table_type
+// @testing:case="test_ctp_connect_type2Table_type_key_int", exception=1
+// schema = ctp::getSchema("marketData")
+// share streamTable(100:0, schema.name, schema.type) as marketDataTable;
+// handle = ctp::connect(CtpIP, CtpPORT, dict([1], [marketDataTable]))
+
+// @testing:case="test_ctp_connect_type2Table_type_key_void",syntaxError=1
+// handle = ctp::connect(CtpIP, CtpPORT, dict([NULL], [marketDataTable]))
+
+// @testing:case="test_ctp_connect_type2Table_type_key_invaild", exception=1
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["InvalidType"], [marketDataTable]))
+
+// // connect exception: type2Table_table
+// @testing:case="test_ctp_connect_type2Table_table_int", exception=1
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [1]))
+
+// @testing:case="test_ctp_connect_type2Table_table_nonStreamTable", exception=1
+// share table(100:0, schema.name, schema.type) as nonStreamTable;
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [nonStreamTable]))
+
+// @testing:case="test_ctp_connect_type2Table_table_nonSharedTable", exception=1
+// nonSharedTable = streamTable(100:0, schema.name, schema.type)
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [nonSharedTable]))
+
+// @testing:case="test_ctp_connect_type2Table_table_schema_mismatch", exception=1
+// share streamTable(100:0, `c1`c2, `INT`STRING) as wrongSchemaTable1
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [wrongSchemaTable1]))
+
+// @testing:case="test_ctp_connect_type2Table_table_schema_mismatch_2", exception=1
+// names = schema.name;
+// types = schema.type;
+// types[0] = `NANOTIMESTAMP;
+// share streamTable(100:0, names, types) as wrongSchemaTable2
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [wrongSchemaTable2]))
+
+// @testing:case="test_ctp_connect_type2Table_table_schema_mismatch_3", exception=1
+// share streamTable(100:0, schema.name[1:], schema.type[1:]) as wrongSchemaTable3;
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [wrongSchemaTable3]))
+
+// @testing:case="test_ctp_connect_twice"
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [marketDataTable]))
+// handle = ctp::connect(CtpIP, CtpPORT, dict(["marketData"], [marketDataTable]))
+
+// subscribe exception handle （全部通过测试√）
+@testing:case="test_ctp_subscribe_handle_int", exception=1
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, "marketData")
+colNames = schema.schema().colDefs.name
+colTypes = schema.schema().colDefs.typeInt
+share streamTable(100:0, colNames, colTypes) as marketDataTable;
+ids = `IF2603`IC2603`IH2603
+ctp::subscribe(1, `marketData, marketDataTable, ids)
+
+@testing:case="test_ctp_subscribe_handle_vector_int", exception=1
+ctp::subscribe([1], `marketData, marketDataTable, ids)
+
+@testing:case="test_ctp_subscribe_handle_vector_handle", exception=1
+ctp::subscribe([handle,handle], `marketData, marketDataTable, ids)
+
+@testing:case="test_ctp_subscribe_handle_void", exception=1
+ctp::subscribe(NULL, `marketData, marketDataTable, ids)
+
+@testing:case="test_ctp_subscribe_closed_handle", exception=1
+ctp::close(handle);
+ctp::subscribe(handle, `marketData, marketDataTable, ids)
+
+@testing:case="test_ctp_subscribe_handle_vector_handle", exception=1
+handle = ctp::connect(CtpIP, CtpPORT)
+ctp::subscribe([handle], `marketData, marketDataTable, ids)
+
+@testing:case="test_ctp_subscribe_handle_any_handle", exception=1
+ctp::subscribe((handle,handle), `marketData, marketDataTable, ids)
+
+// subscribe exception InstrumentID （全部通过测试√）
+@testing:case="test_ctp_subscribe_handle_int", exception=1
+ctp::subscribe(handle, `marketData, marketDataTable, 1)
+
+@testing:case="test_ctp_subscribe_handle_string", exception=1
+ctp::subscribe(handle, `marketData, marketDataTable, `IF2603)
+
+@testing:case="test_ctp_subscribe_handle_any", exception=1
+ctp::subscribe(handle, `marketData, marketDataTable, (`IF2603,`IC2603))
+
+// unsubscribe exception handle（全部通过测试√）
+@testing:case="test_ctp_unsubscribe_handle_int", exception=1
+ctp::subscribe(handle, `marketData, marketDataTable, ids)
+ctp::unsubscribe(1, `marketData, ids)
+
+@testing:case="test_ctp_unsubscribe_handle_vector_int", exception=1
+ctp::unsubscribe([1], `marketData, ids)
+
+@testing:case="test_ctp_unsubscribe_handle_void", exception=1
+ctp::unsubscribe(NULL, `marketData, ids)
+
+@testing:case="test_ctp_unsubscribe_handle_vector_handle", exception=1
+ctp::unsubscribe([handle], `marketData, ids)
+
+@testing:case="test_ctp_unsubscribe_handle_any_handle", exception=1
+ctp::unsubscribe((handle,handle), `marketData, ids)
+
+// unsubscribe exception InstrumentID（全部通过测试√）
+@testing:case="test_ctp_unsubscribe_instrumentID_int", exception=1
+ctp::unsubscribe(handle, `marketData, 1)
+
+@testing:case="test_ctp_unsubscribe_instrumentID_void", exception=1
+ctp::unsubscribe(handle, `marketData, NULL)
+
+@testing:case="test_ctp_unsubscribe_instrumentID_vector_int", exception=1
+ctp::unsubscribe(handle, `marketData, [1])
+
+@testing:case="test_ctp_unsubscribe_instrumentID_string", exception=1
+ctp::unsubscribe(handle, `marketData, `IF2603)
+
+// close exception handle（全部通过测试√）
+@testing:case="test_ctp_close_handle_int", exception=1
+ctp::close(1)
+
+@testing:case="test_ctp_subscribe_handle_vector_int", exception=1
+ctp::close([1])
+
+@testing:case="test_ctp_subscribe_handle_void", exception=1
+ctp::close(NULL)
+
+@testing:case="test_ctp_subscribe_handle_vector_handle", exception=1
+ctp::close([handle]) 
+
+@testing:case="test_ctp_subscribe_handle_any_handle", exception=1
+ctp::close((handle,handle)) 
+
+// getStatus exception handle（全部通过测试√）
+@testing:case="test_ctp_getStatus_handle_int", exception=1
+ctp::getStatus(1)
+
+@testing:case="test_ctp_getStatus_handle_vector_int", exception=1
+ctp::getStatus([1])
+
+@testing:case="test_ctp_getStatus_handle_void", exception=1
+ctp::getStatus(NULL)
+
+@testing:case="test_ctp_getStatus_handle_vector_handle", exception=1
+ctp::getStatus([handle]) 
+
+@testing:case="test_ctp_getStatus_handle_any_handle", exception=1
+ctp::getStatus((handle,handle))
+
+@testing:case="test_ctp_getStatus_handle_closed_handle", exception=1
+ctp::close(handle);
+ctp::getStatus(handle)
+
+// queryInstrument exception
+@testing:case="test_ctp_queryInstrument_IP_wrong",exception=1
+ctp::queryInstrument("114.11.111.111", queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_IP_error_int",exception=1
+ctp::queryInstrument(1, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_IP_error_string_vector",exception=1
+res = ctp::queryInstrument([queryInstrumentPort], queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_IP_error_dict",exception=1
+ctp::queryInstrument(dict([queryInstrumentPort],queryInstrumentPort), queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_IP_error_string_null",exception=1
+ctp::queryInstrument(string(), queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_port_wrong",exception=1
+ctp::queryInstrument(queryInstrumentIp,31811, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_port_error_string",exception=1
+ctp::queryInstrument(queryInstrumentIp,"31803", qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_port_error_int_vector" 
+res = ctp::queryInstrument(queryInstrumentIp, [queryInstrumentPort], qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_port_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, dict([queryInstrumentPort],queryInstrumentPort), qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_port_error_int_null",exception=1
+ctp::queryInstrument(queryInstrumentIp,int(),  qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_userID_wrong",exception=1
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, "991111", qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_userID_error_int",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, 999998, qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_userID_error_string_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort,[qUserID,qUserID], qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_userID_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort,dict([qUserID],qUserID), qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_userID_error_string_null",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort,string(), qPassword, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_password_wrong",exception=1
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, userID, "123213", qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_password_error_int",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,12323, qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_password_error_string_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,[qPassword,qPassword], qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_password_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,dict([qPassword],qPassword), qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_password_error_string_null",exception=1
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,string(), qBrokerID, qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_brokerID_wrong",exception=1
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, "11111", qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_brokerID_error_int",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,qPassword,12323, , qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_brokerID_error_string_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,qPassword,[brokerID,brokerID],  qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_brokerID_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,qPassword,dict([brokerID],brokerID), qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_brokerID_error_string_null",exception=1
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID,qPassword,string(), qAppID, qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_appID_wrong",exception=1
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, "client_ddbctpplgn_1.99", qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_appID_error_int",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, 12323,  qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_appID_error_string_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, [qAppID,qAppID], qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_appID_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, dict([qAppID],qAppID), qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_appID_error_string_null" //timeout
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, string(),  qAuthCode)
+
+@testing:case="test_ctp_queryInstrument_authCode_wrong" //timeout
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, "CKSXNQN22")
+
+@testing:case="test_ctp_queryInstrument_authCode_error_int",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID,12323)
+
+@testing:case="test_ctp_queryInstrument_authCode_error_string_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID,[qAuthCode,qAuthCode])
+
+@testing:case="test_ctp_queryInstrument_authCode_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID,dict([qAuthCode],qAuthCode))
+
+@testing:case="test_ctp_queryInstrument_authCode_error_string_null" //timeout
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID,string())
+
+@testing:case="test_ctp_queryInstrument_exchangeID_wrong"
+resTable = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFEX)
+assert 1, resTable.size()==0
+
+@testing:case="test_ctp_queryInstrument_exchangeID_error_int",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,1)
+
+@testing:case="test_ctp_queryInstrument_exchangeID_error_string_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE`CFFEX)
+
+@testing:case="test_ctp_queryInstrument_exchangeID_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,dict([`SHFE],`CFFEX))
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_string",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,"11")
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_int_vector",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,[11,12])
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_dict",exception=1
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,dict([11],12))
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_duration",exception=1
+waitTimes = 11d
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,waitTimes)
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_date",exception=1
+waitTimes = date(2024.04.16T18:00:00)
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,waitTimes)
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_minute",exception=1
+waitTimes = minute(2024.04.16T18:00:00)
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,waitTimes)
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_timestamp",exception=1
+waitTimes = timestamp(2024.04.16T18:00:00)
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,waitTimes)
+
+@testing:case="test_ctp_queryInstrument_waitTimes_error_double",exception=1
+waitTimes = 0.5
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,waitTimes)
+
+@testing:case="test_ctp_queryInstrument_waitTimes_int_=0",exception=1
+waitTimes = 0
+resTable = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode,`SHFE,waitTimes)
+// assert 1, resTable.size()==0
+
+// 上面的全部通过√
+//-----------------------------------------------------------------------------
+// 未通过：因为它希望 handle 是一个描述性的字段，但是我们回复的只是句柄而已
+@testing:case="test_ctp_getSchema_connect" 
+//res = ctp::close(handle);
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+//assert 1, handle == stringFormat("ctp handle of %W:%i",CtpIP, CtpPORT) 
+
+@testing:case="test_ctp_subscribe" //(√通过)
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+// ids = 'a2305' 'a2307' 'a2309' 'a2311' 'a2401' 'a2403' 'b2304' 'b2305' 'b2306' 'b2307' 'b2308' 'b2309' 'b2310' 'b2311' 'b2312' 'b2401'  'b2402' 'b2403' 'bb2304' 'bb2305' 'bb2306' 'bb2307' 'bb2308' 'bb2309' 'bb2310' 'bb2311' 'bb2312' 'bb2401' 'bb2402' 'bb2403' 'c2305' 'c2307' 'c2309' 'c2311' 'c2401' 'c2403' 'cs2305' 'cs2307' 'cs2309' 'cs2311' 'cs2401' 'cs2403' 'eb2304' 'eb2305' 'eb2306' 'eb2307' 'eb2308' 'eb2309' 'eb2310' 'eb2311' 'eb2312' 'eb2401' 'eb2402' 'eb2403' 'eg2304' 'eg2305' 'eg2306' 'eg2307' 'eg2308' 'eg2309' 'eg2310' 'eg2311' 'eg2312' 'eg2401' 'eg2402' 'eg2403' 'fb2304' 'fb2305' 'fb2306' 'fb2307' 'fb2308' 'fb2309' 'fb2310' 'fb2311' 'fb2312' 'fb2401' 'fb2402' 'fb2403' 'i2304' 'i2305' 'i2306' 'i2307' 'i2308' 'i2309' 'i2310' 'i2311' 'i2312' 'i2401' 'i2402' 'i2403' 'j2304' 'j2305' 'j2306' 'j2307' 'j2308' 'j2309' 'j2310' 'j2311' 'j2312' 'j2401' 'j2402' 'j2403' 'jd2304' 'jd2305' 'jd2306' 'jd2307' 'jd2308' 'jd2309' 'jd2310' 'jd2311' 'jd2312' 'jd2401' 'jd2402' 'jd2403' 'jm2304' 'jm2305' 'jm2306' 'jm2307' 'jm2308' 'jm2309' 'jm2310' 'jm2311' 'jm2312' 'jm2401' 'jm2402' 'jm2403' 'l2304' 'l2305' 'l2306' 'l2307' 'l2308' 'l2309' 'l2310' 'l2311' 'l2312' 'l2401' 'l2402' 'l2403' 'lh2305' 'lh2307' 'lh2309' 'lh2311' 'lh2401' 'lh2403' 'm2305' 'm2307' 'm2308' 'm2309' 'm2311' 'm2312' 'm2401' 'm2403' 'p2304' 'p2305' 'p2306' 'p2307' 'p2308' 'p2309' 'p2310' 'p2311' 'p2312' 'p2401' 'p2402' 'p2403' 'pg2304' 'pg2305' 'pg2306' 'pg2307' 'pg2308' 'pg2309' 'pg2310' 'pg2311' 'pg2312' 'pg2401' 'pg2402' 'pg2403' 'pp2304' 'pp2305' 'pp2306' 'pp2307' 'pp2308' 'pp2309' 'pp2310' 'pp2311' 'pp2312' 'pp2401' 'pp2402' 'pp2403' 'rr2304' 'rr2305' 'rr2306' 'rr2307' 'rr2308' 'rr2309' 'rr2310' 'rr2311' 'rr2312' 'rr2401' 'rr2402' 'rr2403' 'v2304' 'v2305' 'v2306' 'v2307' 'v2308' 'v2309' 'v2310' 'v2311' 'v2312' 'v2401' 'v2402' 'v2403' 'y2305' 'y2307' 'y2308' 'y2309' 'y2311' 'y2312' 'y2401' 'y2403''AP304' 'AP305' 'AP310' 'AP311' 'AP312' 'AP401' 'AP403' 'CF305' 'CF307' 'CF309' 'CF311' 'CF401' 'CF403' 'CJ305' 'CJ307' 'CJ309' 'CJ312' 'CJ401' 'CJ403' 'CY304' 'CY305' 'CY306' 'CY307' 'CY308' 'CY309' 'CY310' 'CY311' 'CY312' 'CY401' 'CY402' 'CY403' 'FG304' 'FG305' 'FG306' 'FG307' 'FG308' 'FG309' 'FG310' 'FG311' 'FG312' 'FG401' 'FG402' 'FG403' 'JR305' 'JR307' 'JR309' 'JR311' 'JR401' 'JR403' 'LR305' 'LR307' 'LR309' 'LR311' 'LR401' 'LR403' 'MA304' 'MA305' 'MA306' 'MA307' 'MA308' 'MA309' 'MA310' 'MA311' 'MA312' 'MA401' 'MA402' 'MA403' 'OI305' 'OI307' 'OI309' 'OI311' 'OI401''OI403' 'PF304' 'PF305' 'PF306' 'PF307' 'PF308' 'PF309' 'PF310' 'PF311' 'PF312' 'PF401' 'PF402' 'PF403' 'PK304' 'PK310' 'PK311' 'PK312' 'PK401' 'PK403' 'PM305' 'PM307' 'PM309' 'PM311' 'PM401' 'PM403' 'RI305' 'RI307' 'RI309' 'RI311' 'RI401' 'RI403' 'RM305' 'RM307' 'RM308' 'RM309' 'RM311' 'RM401' 'RM403' 'RS307' 'RS308' 'RS309' 'RS311' 'SA304' 'SA305' 'SA306' 'SA307' 'SA308' 'SA309' 'SA310' 'SA311' 'SA312' 'SA401' 'SA402' 'SA403' 'SF304' 'SF305' 'SF306' 'SF307' 'SF308' 'SF309' 'SF310' 'SF311' 'SF312' 'SF401' 'SF402' 'SF403' 'SM304' 'SM305' 'SM306' 'SM307' 'SM308' 'SM309' 'SM310' 'SM311' 'SM312' 'SM401' 'SM402' 'SM403' 'SR305' 'SR307' 'SR309' 'SR311' 'SR401' 'SR403' 'TA304' 'TA305' 'TA306' 'TA307' 'TA308' 'TA309' 'TA310' 'TA311' 'TA312' 'TA401' 'TA402' 'TA403' 'UR304' 'UR305' 'UR306' 'UR307' 'UR308' 'UR309' 'UR310' 'UR311' 'UR312' 'UR401' 'UR402' 'UR403' 'WH305' 'WH307' 'WH309' 'WH311'  'WH401' 'WH403' 'ZC304' 'ZC305' 'ZC306' 'ZC307' 'ZC308' 'ZC309' 'ZC310' 'ZC311' 'ZC312' 'ZC401' 'ZC402'
+res = ctp::subscribe(handle, `marketData, marketDataTable, ids);
+sleep(5000)
+assert 1, res == `success
+assert 2, size(marketDataTable) > 0
+assert 3, size(ctp::getStatus(handle).ids) == 19573
+assert 4, size(ctp::getStatus(handle).subStatus) == 1
+
+@testing:case="test_ctp_unsubscribe"//(√通过)
+res = ctp::unsubscribe(handle, `marketData, ids[1:])
+assert 1, res == `success
+assert 2, size(ctp::getStatus(handle).ids) == 1
+res = ctp::unsubscribe(handle, `marketData, ids[:1])
+assert 3, res == `success
+assert 4, size(ctp::getStatus(handle).ids) == 0
+
+@testing:case="test_ctp_resubscribe"//(√通过)
+res = ctp::subscribe(handle, `marketData,marketDataTable, ids);
+assert 1, size(marketDataTable) > 0
+
+@testing:case="test_ctp_getSchema_close"//(√通过)
+res = ctp::close(handle);
+assert 1, res == `success
+
+@testing:case="test_ctp_persistence_table"//(√通过)
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, `marketData)
+ctpTmpTable=streamTable(100:0, schema.name, schema.typeInt)
+enableTableShareAndPersistence(table = ctpTmpTable, tableName=`ctp_market_data_sample, cacheSize = 100) 
+go
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+// ids = 'a2305' 'a2307' 'a2309' 'a2311' 'a2401' 'a2403' 'b2304' 'b2305' 'b2306' 'b2307' 'b2308' 'b2309' 'b2310' 'b2311' 'b2312' 'b2401'  'b2402' 'b2403' 'bb2304' 'bb2305' 'bb2306' 'bb2307' 'bb2308' 'bb2309' 'bb2310' 'bb2311' 'bb2312' 'bb2401' 'bb2402' 'bb2403' 'c2305' 'c2307' 'c2309' 'c2311' 'c2401' 'c2403' 'cs2305' 'cs2307' 'cs2309' 'cs2311' 'cs2401' 'cs2403' 'eb2304' 'eb2305' 'eb2306' 'eb2307' 'eb2308' 'eb2309' 'eb2310' 'eb2311' 'eb2312' 'eb2401' 'eb2402' 'eb2403' 'eg2304' 'eg2305' 'eg2306' 'eg2307' 'eg2308' 'eg2309' 'eg2310' 'eg2311' 'eg2312' 'eg2401' 'eg2402' 'eg2403' 'fb2304' 'fb2305' 'fb2306' 'fb2307' 'fb2308' 'fb2309' 'fb2310' 'fb2311' 'fb2312' 'fb2401' 'fb2402' 'fb2403' 'i2304' 'i2305' 'i2306' 'i2307' 'i2308' 'i2309' 'i2310' 'i2311' 'i2312' 'i2401' 'i2402' 'i2403' 'j2304' 'j2305' 'j2306' 'j2307' 'j2308' 'j2309' 'j2310' 'j2311' 'j2312' 'j2401' 'j2402' 'j2403' 'jd2304' 'jd2305' 'jd2306' 'jd2307' 'jd2308' 'jd2309' 'jd2310' 'jd2311' 'jd2312' 'jd2401' 'jd2402' 'jd2403' 'jm2304' 'jm2305' 'jm2306' 'jm2307' 'jm2308' 'jm2309' 'jm2310' 'jm2311' 'jm2312' 'jm2401' 'jm2402' 'jm2403' 'l2304' 'l2305' 'l2306' 'l2307' 'l2308' 'l2309' 'l2310' 'l2311' 'l2312' 'l2401' 'l2402' 'l2403' 'lh2305' 'lh2307' 'lh2309' 'lh2311' 'lh2401' 'lh2403' 'm2305' 'm2307' 'm2308' 'm2309' 'm2311' 'm2312' 'm2401' 'm2403' 'p2304' 'p2305' 'p2306' 'p2307' 'p2308' 'p2309' 'p2310' 'p2311' 'p2312' 'p2401' 'p2402' 'p2403' 'pg2304' 'pg2305' 'pg2306' 'pg2307' 'pg2308' 'pg2309' 'pg2310' 'pg2311' 'pg2312' 'pg2401' 'pg2402' 'pg2403' 'pp2304' 'pp2305' 'pp2306' 'pp2307' 'pp2308' 'pp2309' 'pp2310' 'pp2311' 'pp2312' 'pp2401' 'pp2402' 'pp2403' 'rr2304' 'rr2305' 'rr2306' 'rr2307' 'rr2308' 'rr2309' 'rr2310' 'rr2311' 'rr2312' 'rr2401' 'rr2402' 'rr2403' 'v2304' 'v2305' 'v2306' 'v2307' 'v2308' 'v2309' 'v2310' 'v2311' 'v2312' 'v2401' 'v2402' 'v2403' 'y2305' 'y2307' 'y2308' 'y2309' 'y2311' 'y2312' 'y2401' 'y2403''AP304' 'AP305' 'AP310' 'AP311' 'AP312' 'AP401' 'AP403' 'CF305' 'CF307' 'CF309' 'CF311' 'CF401' 'CF403' 'CJ305' 'CJ307' 'CJ309' 'CJ312' 'CJ401' 'CJ403' 'CY304' 'CY305' 'CY306' 'CY307' 'CY308' 'CY309' 'CY310' 'CY311' 'CY312' 'CY401' 'CY402' 'CY403' 'FG304' 'FG305' 'FG306' 'FG307' 'FG308' 'FG309' 'FG310' 'FG311' 'FG312' 'FG401' 'FG402' 'FG403' 'JR305' 'JR307' 'JR309' 'JR311' 'JR401' 'JR403' 'LR305' 'LR307' 'LR309' 'LR311' 'LR401' 'LR403' 'MA304' 'MA305' 'MA306' 'MA307' 'MA308' 'MA309' 'MA310' 'MA311' 'MA312' 'MA401' 'MA402' 'MA403' 'OI305' 'OI307' 'OI309' 'OI311' 'OI401''OI403' 'PF304' 'PF305' 'PF306' 'PF307' 'PF308' 'PF309' 'PF310' 'PF311' 'PF312' 'PF401' 'PF402' 'PF403' 'PK304' 'PK310' 'PK311' 'PK312' 'PK401' 'PK403' 'PM305' 'PM307' 'PM309' 'PM311' 'PM401' 'PM403' 'RI305' 'RI307' 'RI309' 'RI311' 'RI401' 'RI403' 'RM305' 'RM307' 'RM308' 'RM309' 'RM311' 'RM401' 'RM403' 'RS307' 'RS308' 'RS309' 'RS311' 'SA304' 'SA305' 'SA306' 'SA307' 'SA308' 'SA309' 'SA310' 'SA311' 'SA312' 'SA401' 'SA402' 'SA403' 'SF304' 'SF305' 'SF306' 'SF307' 'SF308' 'SF309' 'SF310' 'SF311' 'SF312' 'SF401' 'SF402' 'SF403' 'SM304' 'SM305' 'SM306' 'SM307' 'SM308' 'SM309' 'SM310' 'SM311' 'SM312' 'SM401' 'SM402' 'SM403' 'SR305' 'SR307' 'SR309' 'SR311' 'SR401' 'SR403' 'TA304' 'TA305' 'TA306' 'TA307' 'TA308' 'TA309' 'TA310' 'TA311' 'TA312' 'TA401' 'TA402' 'TA403' 'UR304' 'UR305' 'UR306' 'UR307' 'UR308' 'UR309' 'UR310' 'UR311' 'UR312' 'UR401' 'UR402' 'UR403' 'WH305' 'WH307' 'WH309' 'WH311'  'WH401' 'WH403' 'ZC304' 'ZC305' 'ZC306' 'ZC307' 'ZC308' 'ZC309' 'ZC310' 'ZC311' 'ZC312' 'ZC401' 'ZC402'
+ctp::subscribe(handle,`marketData,ctpTmpTable, ids);
+ex = select * from ctpTmpTable
+res = select * from ctp_market_data_sample
+sleep(1000)
+assert 1, each(eqObj,ex.values(),res.values())
+
+clearTablePersistence(ctp_market_data_sample);
+
+@testing:case="test_ctp_subscribe_one_id"//(√通过)
+ctp::close(handle);
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+res = ctp::subscribe(handle,`marketData,marketDataTable, [`ZC306]);
+sleep(5000)
+assert 1, res == `success
+// assert 2, size(marketDataTable) > 0
+assert 3, size(ctp::getStatus(handle).ids) == 1
+res = ctp::subscribe(handle,`marketData,marketDataTable, [`TA306]);
+assert 4, res == `success
+assert 5, size(ctp::getStatus(handle).ids) == 2
+res = ctp::subscribe(handle,`marketData,marketDataTable, [`SF306]);
+assert 6, res == `success
+assert 7, size(ctp::getStatus(handle).ids) == 3
+
+@testing:case="test_ctp_subscribe_other_id"//(√通过)
+ctp::close(handle);
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+res = ctp::subscribe(handle,`marketData,marketDataTable, [`PP2212]);
+sleep(5000)
+assert 1, res == `success
+assert 2, size(marketDataTable) == 0
+assert 3, size(ctp::getStatus(handle).ids) == 1
+
+@testing:case="test_ctp_subscribe_data_check"//(√通过)
+ctp::close(handle);
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+res = ctp::subscribe(handle,`marketData,marketDataTable, [`a2307]);
+sleep(5000)
+numCols = exec name from schema where typeString = 'INT' or type = 'DOUBLE'
+count = size(marketDataTable)
+for(numCol in numCols){
+	for(i in 0..(count-1)){
+		assert 1,marketDataTable[numCol][i]<1.797693E308
+	}
+}
+
+@testing:case="test_ctp_connect_multiple"//(√通过)
+ctp::close(handle);
+
+def mConnect(CtpIP, CtpPORT){
+	handle = ctp::connect(CtpIP, CtpPORT)
+}
+
+jobs = []
+for(i in 0..50){
+	jobs.append!(submitJob("mc", "mc", mConnect, CtpIP, CtpPORT))
+}
+for(jb in jobs){
+	getJobReturn(jb, true)
+}
+
+@testing:case="test_ctp_subscribe_multiple"//(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+
+def msubscribe(handle, ids, marketDataTable){
+	res = ctp::subscribe(handle,`marketData,marketDataTable, ids);
+	assert 1, res == `success
+}
+
+jobs = []
+for(i in 0..50){
+	jobs.append!(submitJob("ms", "ms", msubscribe, handle, ids, marketDataTable))
+}
+for(jb in jobs){
+	getJobReturn(jb, true)
+}
+
+@testing:case="test_ctp_unsubscribe_multiple"//(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+sleep(3000)
+def msubscribe(handle, ids, marketDataTable){
+	sleep(rand(500,1)[0])
+	ctp::subscribe(handle,`marketData,marketDataTable, ids);
+	sleep(100)
+	ctp::unsubscribe(handle,`marketData, ids);
+}
+
+jobs = []
+for(i in 0..50){
+	jobs.append!(submitJob("mus", "mus", msubscribe, handle, ids, marketDataTable))
+}
+for(jb in jobs){
+	getJobReturn(jb, true)
+}
+ctp::close(handle)
+
+@testing:case="test_ctp_close_multiple"//(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+def mclose(handle){
+	try{ctp::close(handle)}catch(ex){}
+}
+
+jobs = []
+for(i in 0..10){
+	jobs.append!(submitJob("mcl", "mcl", mclose, handle))
+}
+for(jb in jobs){
+	getJobReturn(jb, true)
+}
+
+@testing:case="test_ctp_getSchema_multiple"//(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+
+def mgetSchema(handle){
+	return ctp::getSchema(handle,`marketData)
+}
+jobs = []
+for(i in 0..50){
+	jobs.append!(submitJob("mg", "mg", mgetSchema, handle))
+}
+res = []
+for(jb in jobs){
+	res.append!(getJobReturn(jb, true))
+}
+for(re in res){
+	assert 1, size(re) == 24 //47 改 24
+}
+
+@testing:case="test_ctp_getSchema_connect_ConcatTime_true"//(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ConcatTime"],[true]))
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+//assert 1, handle == stringFormat("ctp handle of %W:%i",CtpIP, CtpPORT) //我们的handle不是断言
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+sleep(5000)
+// ids = 'a2305' 'a2307' 'a2309' 'a2311' 'a2401' 'a2403' 'b2304' 'b2305' 'b2306' 'b2307' 'b2308' 'b2309' 'b2310' 'b2311' 'b2312' 'b2401'  'b2402' 'b2403' 'bb2304' 'bb2305' 'bb2306' 'bb2307' 'bb2308' 'bb2309' 'bb2310' 'bb2311' 'bb2312' 'bb2401' 'bb2402' 'bb2403' 'c2305' 'c2307' 'c2309' 'c2311' 'c2401' 'c2403' 'cs2305' 'cs2307' 'cs2309' 'cs2311' 'cs2401' 'cs2403' 'eb2304' 'eb2305' 'eb2306' 'eb2307' 'eb2308' 'eb2309' 'eb2310' 'eb2311' 'eb2312' 'eb2401' 'eb2402' 'eb2403' 'eg2304' 'eg2305' 'eg2306' 'eg2307' 'eg2308' 'eg2309' 'eg2310' 'eg2311' 'eg2312' 'eg2401' 'eg2402' 'eg2403' 'fb2304' 'fb2305' 'fb2306' 'fb2307' 'fb2308' 'fb2309' 'fb2310' 'fb2311' 'fb2312' 'fb2401' 'fb2402' 'fb2403' 'i2304' 'i2305' 'i2306' 'i2307' 'i2308' 'i2309' 'i2310' 'i2311' 'i2312' 'i2401' 'i2402' 'i2403' 'j2304' 'j2305' 'j2306' 'j2307' 'j2308' 'j2309' 'j2310' 'j2311' 'j2312' 'j2401' 'j2402' 'j2403' 'jd2304' 'jd2305' 'jd2306' 'jd2307' 'jd2308' 'jd2309' 'jd2310' 'jd2311' 'jd2312' 'jd2401' 'jd2402' 'jd2403' 'jm2304' 'jm2305' 'jm2306' 'jm2307' 'jm2308' 'jm2309' 'jm2310' 'jm2311' 'jm2312' 'jm2401' 'jm2402' 'jm2403' 'l2304' 'l2305' 'l2306' 'l2307' 'l2308' 'l2309' 'l2310' 'l2311' 'l2312' 'l2401' 'l2402' 'l2403' 'lh2305' 'lh2307' 'lh2309' 'lh2311' 'lh2401' 'lh2403' 'm2305' 'm2307' 'm2308' 'm2309' 'm2311' 'm2312' 'm2401' 'm2403' 'p2304' 'p2305' 'p2306' 'p2307' 'p2308' 'p2309' 'p2310' 'p2311' 'p2312' 'p2401' 'p2402' 'p2403' 'pg2304' 'pg2305' 'pg2306' 'pg2307' 'pg2308' 'pg2309' 'pg2310' 'pg2311' 'pg2312' 'pg2401' 'pg2402' 'pg2403' 'pp2304' 'pp2305' 'pp2306' 'pp2307' 'pp2308' 'pp2309' 'pp2310' 'pp2311' 'pp2312' 'pp2401' 'pp2402' 'pp2403' 'rr2304' 'rr2305' 'rr2306' 'rr2307' 'rr2308' 'rr2309' 'rr2310' 'rr2311' 'rr2312' 'rr2401' 'rr2402' 'rr2403' 'v2304' 'v2305' 'v2306' 'v2307' 'v2308' 'v2309' 'v2310' 'v2311' 'v2312' 'v2401' 'v2402' 'v2403' 'y2305' 'y2307' 'y2308' 'y2309' 'y2311' 'y2312' 'y2401' 'y2403''AP304' 'AP305' 'AP310' 'AP311' 'AP312' 'AP401' 'AP403' 'CF305' 'CF307' 'CF309' 'CF311' 'CF401' 'CF403' 'CJ305' 'CJ307' 'CJ309' 'CJ312' 'CJ401' 'CJ403' 'CY304' 'CY305' 'CY306' 'CY307' 'CY308' 'CY309' 'CY310' 'CY311' 'CY312' 'CY401' 'CY402' 'CY403' 'FG304' 'FG305' 'FG306' 'FG307' 'FG308' 'FG309' 'FG310' 'FG311' 'FG312' 'FG401' 'FG402' 'FG403' 'JR305' 'JR307' 'JR309' 'JR311' 'JR401' 'JR403' 'LR305' 'LR307' 'LR309' 'LR311' 'LR401' 'LR403' 'MA304' 'MA305' 'MA306' 'MA307' 'MA308' 'MA309' 'MA310' 'MA311' 'MA312' 'MA401' 'MA402' 'MA403' 'OI305' 'OI307' 'OI309' 'OI311' 'OI401''OI403' 'PF304' 'PF305' 'PF306' 'PF307' 'PF308' 'PF309' 'PF310' 'PF311' 'PF312' 'PF401' 'PF402' 'PF403' 'PK304' 'PK310' 'PK311' 'PK312' 'PK401' 'PK403' 'PM305' 'PM307' 'PM309' 'PM311' 'PM401' 'PM403' 'RI305' 'RI307' 'RI309' 'RI311' 'RI401' 'RI403' 'RM305' 'RM307' 'RM308' 'RM309' 'RM311' 'RM401' 'RM403' 'RS307' 'RS308' 'RS309' 'RS311' 'SA304' 'SA305' 'SA306' 'SA307' 'SA308' 'SA309' 'SA310' 'SA311' 'SA312' 'SA401' 'SA402' 'SA403' 'SF304' 'SF305' 'SF306' 'SF307' 'SF308' 'SF309' 'SF310' 'SF311' 'SF312' 'SF401' 'SF402' 'SF403' 'SM304' 'SM305' 'SM306' 'SM307' 'SM308' 'SM309' 'SM310' 'SM311' 'SM312' 'SM401' 'SM402' 'SM403' 'SR305' 'SR307' 'SR309' 'SR311' 'SR401' 'SR403' 'TA304' 'TA305' 'TA306' 'TA307' 'TA308' 'TA309' 'TA310' 'TA311' 'TA312' 'TA401' 'TA402' 'TA403' 'UR304' 'UR305' 'UR306' 'UR307' 'UR308' 'UR309' 'UR310' 'UR311' 'UR312' 'UR401' 'UR402' 'UR403' 'WH305' 'WH307' 'WH309' 'WH311'  'WH401' 'WH403' 'ZC304' 'ZC305' 'ZC306' 'ZC307' 'ZC308' 'ZC309' 'ZC310' 'ZC311' 'ZC312' 'ZC401' 'ZC402'
+res = ctp::subscribe(handle, `marketData, marketDataTable, ids);
+sleep(5000)
+assert 1, res == `success
+assert 2, size(marketDataTable) > 0
+assert 3, size(ctp::getStatus(handle).ids) == 19573
+assert 4, size(ctp::getStatus(handle).subStatus) == 1
+//assert 5, time(marketDataTable[`UpdateTime]) + time(marketDataTable[`UpdateMillisec]) == time(marketDataTable[`tradeTime]) //过不了，但查看marketDataTable是正确的
+
+@testing:case="test_ctp_getSchema_connect_ReceivedTime_false" //(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[false]))
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+//assert 1, handle == stringFormat("ctp handle of %W:%i",CtpIP, CtpPORT) 
+assert 2, !("perPenetrationTime" in schema[`name])
+
+@testing:case="test_ctp_getSchema_connect_OutputElapsed_true" //(√通过)
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT, dict(["OutputElapsed"],[true]))
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+//assert 1, handle == stringFormat("ctp handle of %W:%i",CtpIP, CtpPORT) 
+assert 2, ("perPenetrationTime" in schema[`name])
+
+@testing:case="test_ctp_connect_vector_host&port" //(√通过)
+//host = ["116.228.52.242", "180.169.68.3", "shdx-ctp1.gjqh.com.cn"]
+//port = [11215, 11215, 11215]
+host = ["182.254.243.31", "182.254.243.31", "182.254.243.31"]
+port = [40011, 40011, 40011]
+
+conn1 = ctp::connect(host, port)
+schema = ctp::getSchema(conn1, `marketData)
+table1=streamTable(1000000:0, schema.name, schema.typeInt)
+share table1 as ctpTB
+
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+sleep(5000)
+res = ctp::subscribe(conn1, `marketData, ctpTB, ids);
+sleep(5000)
+assert 1, res == `success
+assert 2, size(ctpTB) > 0
+assert 3, size(ctp::getStatus(conn1).ids) == 19573
+assert 4, size(ctp::getStatus(conn1).subStatus) == 1
+
+@testing:case="test_ctp_connect_vector_host&port_with_with_some_wrong" //(√通过)
+try{ctp::close(conn1);}catch(ex){} 
+//host = ["116.228.52.242", "180.169.68.3", "s.cn"]
+//port = [11215, 10, 11215]
+host = ["114.80.54.248", "114.80.54.252", "s.cn"]
+port = [41313, 10, 11215]
+
+conn1 = ctp::connect(host, port)
+schema = ctp::getSchema(conn1, `marketData)
+table1=streamTable(1000000:0, schema.name, schema.typeInt)
+share table1 as ctpTB
+
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+sleep(5000)
+res = ctp::subscribe(conn1, `marketData, ctpTB, ids);
+sleep(5000)
+assert 1, res == `success
+assert 2, size(ctpTB) > 0
+assert 3, size(ctp::getStatus(conn1).ids) == 19573
+assert 4, size(ctp::getStatus(conn1).subStatus) == 1
+
+@testing:case="test_ctp_tear" //(√通过)
+try{ctp::close(handle)}catch(ex){} 
+try{ctp::close(conn1)}catch(ex){}
+try{
+	undef(`marketDataTable,SHARED)
+}catch (ex){}
+try{
+	undef(`nonStreamTable,SHARED)
+}catch (ex){}
+try{
+	undef(`wrongSchemaTable1,SHARED)
+}catch (ex){}
+try{
+	undef(`wrongSchemaTable2,SHARED)
+}catch (ex){}
+try{
+	undef(`wrongSchemaTable3,SHARED)
+}catch (ex){}
+
+//上面的全部通过测试了
+//---------------------------------------------------------------------------
+//cov （全部通过）
+@testing:case="test_ctp_init_connect"  //(√通过)
+handle = ctp::connect(CtpIP, CtpPORT)
+
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+
+@testing:case="test_ctp_subscribe_datatype_string_vector", exception=1
+res = ctp::subscribe(handle, [`marketData], marketDataTable, ids);
+
+@testing:case="test_ctp_subscribe_datatype_int_scalar", exception=1
+res = ctp::subscribe(handle, 1, marketDataTable, ids);
+
+@testing:case="test_ctp_unsubscribe_datatype_string_vector", exception=1
+ctp::unsubscribe(handle, [`marketData], ids);
+
+@testing:case="test_ctp_unsubscribe_datatype_int_scalar", exception=1
+ctp::unsubscribe(handle, 1, ids);
+
+@testing:case="clear_connection"
+ctp::close(handle);
+//----------------------------------------------------------------------
+//全部通过
+@testing:case="test_ctp_connect_without_password", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), "admin")
+ctp::close(handle);
+
+@testing:case="test_ctp_connect_username_string_null", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), string(NULL), "123456")
+ctp::close(handle);
+
+@testing:case="test_ctp_connect_username_string_vector", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), ["a", "b"], "123456")
+
+@testing:case="test_ctp_connect_username_int_scalar", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), 1, "123456")
+
+@testing:case="test_ctp_connect_password_string_null", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), "admin", string(NULL))
+
+@testing:case="test_ctp_connect_password_string_vector", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), "admin", ["111", "222"])
+
+@testing:case="test_ctp_connect_password_int_scalar", exception=1
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), "admin", 123)
+
+@testing:case="test_ctp_connect_specify_username_password"
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ReceivedTime"],[true]), "admin", "123456")
+ctp::close(handle)
+
+//---------------------------------------------------------------------------
+// 全部通过 √
+@testing:case="prepare_data"
+host = "114.80.54.252"
+port = 41313
+
+@testing:case="test_ctp_connect_opt_wrong_key_type", exception=1
+opt = dict([1, 2], [true, true])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_invalid_key", exception=1
+opt = dict(["wrongkey", "wrongkey2"], [true, true])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_value_form_ReceiveTime", exception=1
+opt=dict(["ReceivedTime"], [[true, true]])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_value_type_ReceiveTime", exception=1
+opt=dict(["ReceivedTime"], ["wrong"])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_value_form_ConcatTime", exception=1
+opt=dict(["ConcatTime"], [[true, true]])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_value_type_ConcatTime", exception=1
+opt=dict(["ConcatTime"], ["wrong"])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_value_form_OutputElapsed", exception=1
+opt=dict(["OutputElapsed"], [[true, true]])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_value_type_OutputElapsed", exception=1
+opt=dict(["OutputElapsed"], ["wrong"])
+conn1 = ctp::connect("183.134.101.133", 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_ip_type_dict", exception=1
+opt=dict(["OutputElapsed"], ["wrong"])
+conn1 = ctp::connect(opt, 41413, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_port_type_dict", exception=1
+opt=dict(["OutputElapsed"], ["wrong"])
+conn1 = ctp::connect("183.134.101.133", opt, opt)
+
+@testing:case="test_ctp_connect_opt_wrong_port_type_dict", exception=1
+opt=dict(["OutputElapsed"], ["wrong"])
+conn1 = ctp::connect("183.134.101.133", 41313, 41331)
+
+@testing:case="test_ctp_connect_opt_ip_port_different_length", exception=1
+conn1 = ctp::connect("183.134.101.133", [0, 41313], NULL)
+
+//------------------------------------------------------------------------------------------
+//全部通过
+@testing:case="test_ctp_connect_streamTable_wrong_type", exception=1
+host = "182.254.243.31"
+port = 40011
+conn1 = ctp::connect(host, port)  // 在后面第一个无 exception 的 case 里关掉
+ctp::subscribe(conn1, "marketData", 1, [""])
+
+@testing:case="test_ctp_connect_opt_streamTable_not_shared", exception=1
+ctp::subscribe(conn1, "marketData", table(["aaa"] as c1), [""])
+
+@testing:case="test_ctp_getSchema_wrong_type", exception=1
+ctp::getSchema(1, "marketData")
+
+@testing:case="test_ctp_getSchema_wrong_form", exception=1
+ctp::getSchema([1,2,3], "marketData")
+
+@testing:case="clear_connection"
+ctp::close(conn1)   // 关掉前面创建的 host
+
+@testing:case="test_ctp_outputElapsed"
+opt=dict(["OutputElapsed"], [true])
+conn1 = ctp::connect(host, port,opt)
+schema = ctp::getSchema(conn1, `marketData)
+assert 1, schema.name[24]=="perPenetrationTime"
+assert 2, schema.typeString[24]=="LONG"
+assert 3, schema.typeInt[24]==5
+table1=streamTable(100000:0, schema.name, schema.typeInt)
+share table1 as ctpTB_test_outputElapsed
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv") /// 需要改一下，改成回归里的
+sleep(3000)
+ctp::subscribe(conn1, "marketData", ctpTB_test_outputElapsed, ids)
+sleep(3000)
+status = ctp::getStatus(conn1)
+assert 4, status["subStatus"].processedMsgCount[0]>0  // 有数据时候测试
+ctp::close(conn1)
+
+//----------------------------------------------------------------------------------
+// LogLevel组
+// https://dolphindb1.atlassian.net/browse/D20-20167
+@testing:case="test_function_ctp_setLogLevel_empty",exception=1
+ctp::setLogLevel()
+
+@testing:case="test_function_ctp_setLogLevel_arg_over",syntaxError=1
+ctp::setLogLevel(INFO, 2)
+
+@testing:case="test_function_ctp_setLogLevel_other_saclar_1",exception=1
+ctp::setLogLevel(true)
+
+@testing:case="test_function_ctp_setLogLevel_other_saclar_2",exception=1
+ctp::setLogLevel(DOUBLE)
+
+@testing:case="test_function_ctp_setLogLevel_vector",exception=1
+ctp::setLogLevel([INFO, INFO])
+
+@testing:case="test_function_ctp_setLogLevel_pair",exception=1
+ctp::setLogLevel(INFO:INFO)
+
+@testing:case="test_function_ctp_setLogLevel_matrix",exception=1
+ctp::setLogLevel(1..6$2:3)
+
+@testing:case="test_function_ctp_setLogLevel_set",exception=1
+ctp::setLogLevel(set(1 2 3))
+
+@testing:case="test_function_ctp_setLogLevel_dict",exception=1
+ctp::setLogLevel(dict(1 2 3, 1 2 3))
+
+@testing:case="test_function_ctp_setLogLevel_table",exception=1
+ctp::setLogLevel(table(1 2 3 as x))
+
+@testing:case="test_function_ctp_getLogLevel_arg_over",syntaxError=1
+ctp::getLogLevel(1)
+
+@testing:case="test_ctp_getLogLevel_default"
+assert 1, eqObj(ctp::getLogLevel(), getConfig("logLevel"))
+
+@testing:case="test_function_ctp_getLogLevel_setLogLevel_multi_times"
+for(logLevel in take([DEBUG, INFO, WARNING, ERROR], 1000)){
+	ctp::setLogLevel(logLevel)
+	ans = ctp::getLogLevel()
+	if(logLevel==DEBUG){ex = "DEBUG"}
+	if(logLevel==INFO){ex = "INFO"}
+	if(logLevel==WARNING){ex = "WARNING"}
+	if(logLevel==ERROR){ex = "ERROR"}
+	assert 1, eqObj(ans, ex)
+}
+
+@testing:case="test_function_ctp_getLogLevel_setLogLevel_multi_jobs"
+def submitJob_set(){
+	for(logLevel in take([DEBUG, INFO, WARNING, ERROR], 1000)){
+		ctp::setLogLevel(logLevel)
+	}
+}
+
+def submitJob_get(){
+	for(i in 1..1000){
+		ans = ctp::getLogLevel()
+		assert 1, ans in ["DEBUG", "INFO", "WARNING", "ERROR"]
+	}
+}
+
+job1 = submitJob("submitJob_set", "submitJob_set", submitJob_set)
+job2 = submitJob("submitJob_set", "submitJob_set", submitJob_set)
+job3 = submitJob("submitJob_get", "submitJob_get", submitJob_get)
+job4 = submitJob("submitJob_get", "submitJob_get", submitJob_get)
+getJobReturn(job1, true)
+getJobReturn(job2, true)
+getJobReturn(job3, true)
+getJobReturn(job4, true)
+for(logLevel in take([DEBUG, INFO, WARNING, ERROR], 1000)){
+	ctp::setLogLevel(logLevel)
+	ans = ctp::getLogLevel()
+	if(logLevel==DEBUG){ex = "DEBUG"}
+	if(logLevel==INFO){ex = "INFO"}
+	if(logLevel==WARNING){ex = "WARNING"}
+	if(logLevel==ERROR){ex = "ERROR"}
+	assert 1, eqObj(ans, ex)
+}
+//------------------------------------------------------------------------------------
+//关键词传参：全部通过测试
+
+@testing:case = "test_ctp_function_connect_keyword_host" // 通过√
+conn = NULL
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(host=CtpIP, port=CtpPORT)
+res = ctp::getStatus(conn)
+assert 1, isNull(res["ids"])
+
+@testing:case = "test_ctp_function_connect_keyword_port"// 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, port=CtpPORT)
+res = ctp::getStatus(conn)
+assert 1, isNull(res["ids"])
+
+@testing:case = "test_ctp_function_connect_keyword_option"// 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT, option=dict(["ReceivedTime"],[true]))
+res = ctp::getStatus(conn)
+assert 1, isNull(res["ids"])
+
+// username and password should be specified at the same time.
+@testing:case = "test_ctp_function_connect_keyword_username_and_password"// 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT, username=userID, password=password)
+res = ctp::getStatus(conn)
+assert 1, isNull(res["ids"])
+
+@testing:case = "test_ctp_function_connect_keyword_some_arg"// 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT, , userID, password=password)
+res = ctp::getStatus(conn)
+assert 1, isNull(res["ids"])
+
+@testing:case = "test_ctp_function_connect_wrong_arg_name", syntaxError = 1 // 通过√
+ctp::connect(wrongName=CtpIP, port=CtpPORT)
+
+@testing:case = "test_ctp_function_connect_syntax" // 通过√
+res = syntax(ctp::connect)
+assert 1, eqObj(res, "connect(host, port, [option], [username], [password])")
+
+@testing:case = "test_ctp_function_subscribe_keyword_handle" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(handle=conn, dataType=`marketData,
+	outputTable=marketDataTable, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_subscribe_keyword_dataType" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, dataType=`marketData,
+	outputTable=marketDataTable, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_subscribe_keyword_outputTable" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, outputTable=marketDataTable, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_subscribe_keyword_codeList" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, marketDataTable, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_subcribe_wrong_arg_name", syntaxError = 1 // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, marketDataTable, wrongName=ids)
+
+@testing:case = "test_ctp_function_subscribe_syntax" // 通过√
+res = syntax(ctp::subscribe)
+assert 1, eqObj(res, "subscribe(handle, dataType, outputTable, codeList)")
+
+@testing:case = "test_ctp_function_unsubscribe_keyword_handle" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, marketDataTable, ids)
+res = ctp::unsubscribe(handle=conn, dataType=`marketData, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_unsubscribe_keyword_dataType" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, marketDataTable, ids)
+res = ctp::unsubscribe(conn, dataType=`marketData, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_unsubscribe_keyword_codeList" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, marketDataTable, ids)
+res = ctp::unsubscribe(conn, `marketData, codeList=ids)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_unsubcribe_wrong_arg_name", syntaxError = 1 // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn,`marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = ['a2035', 'a2037']
+res = ctp::subscribe(conn, `marketData, marketDataTable, ids)
+ctp::unsubscribe(conn, `marketData, wrongName=ids)
+
+@testing:case = "test_ctp_function_unsubscribe_syntax" // 通过√
+res = syntax(ctp::unsubscribe)
+assert 1, eqObj(res, "unsubscribe(handle, dataType, codeList)")
+
+@testing:case = "test_ctp_function_close_keyword_handle" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+res = ctp::close(handle=conn)
+assert 1, res == `success
+
+@testing:case = "test_ctp_function_close_wrong_arg_name", syntaxError = 1 // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+ctp::close(wrongName=conn)
+
+@testing:case = "test_ctp_function_close_syntax" // 通过√
+res = syntax(ctp::close)
+assert 1, eqObj(res, "close(handle)")
+
+@testing:case = "test_ctp_function_getSchema_keyword_handle" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle=conn, dataType=`marketData)
+assert 1, size(schema) == 24
+
+@testing:case = "test_ctp_function_getSchema_keyword_dataType" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn, dataType=`marketData)
+assert 1, size(schema) == 24
+
+@testing:case = "test_ctp_function_getSchema_wrong_arg_name", syntaxError = 1 // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(conn, wrongName=`marketData)
+
+@testing:case = "test_ctp_function_getSchema_syntax" // 通过√
+res = syntax(ctp::getSchema)
+assert 1, eqObj(res, "getSchema(handle, dataType)")
+
+@testing:case = "test_ctp_function_getStatus_keyword_handle" // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+res = ctp::getStatus(handle=conn)
+assert 1, isNull(res["ids"])
+assert 2, res["subStatus"][`topicName] == [`marketData]
+
+@testing:case = "test_ctp_function_getStatus_wrong_arg_name", syntaxError = 1 // 通过√
+try{
+	ctp::close(conn)
+}
+catch (ex) {}
+conn = ctp::connect(CtpIP, CtpPORT)
+res = ctp::getStatus(wrongName=conn)
+
+@testing:case = "test_ctp_function_getStatus_syntax" // 通过√
+res = syntax(ctp::getStatus)
+assert 1, eqObj(res, "getStatus(handle)")
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_host" // 通过√
+res = ctp::queryInstrument(host=queryInstrumentIp, port=queryInstrumentPort, username=qUserID, password=qPassword,
+	brokerID=qBrokerID, appID=qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_port" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, port=queryInstrumentPort, username=qUserID, password=qPassword,
+	brokerID=qBrokerID, appID=qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_username" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, username=qUserID, password=qPassword,
+	brokerID=qBrokerID, appID=qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_password" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, password=qPassword,
+	brokerID=qBrokerID, appID=qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_brokenID" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword,
+	brokerID=qBrokerID, appID=qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_appID" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, appID=qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_authCode" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, authCode=qAuthCode)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_authCode" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode, exchangeID=`CFFEX, timeout=10)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_timeout" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode, `CFFEX, timeout=10)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_keyword_not_all_option_args" // 通过√
+res = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode, exchangeID=`CFFEX)
+assert 1, size(res) > 0
+
+@testing:case = "test_ctp_function_queryInstrument_wrong_arg_name", syntaxError = 1 // 通过√
+ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode, wrongName=authCode)
+
+@testing:case = "test_ctp_function_queryInstrument_syntax" // 通过√
+res = syntax(ctp::queryInstrument)
+ex = "queryInstrument(host, port, username, password, brokerID, appID, authCode," + 
+	" [exchangeID], [timeout])"
+assert 1, eqObj(res, ex)
+
+@testing:case="test_ctp_tear" // 通过√
+try{
+	ctp::close(handle)
+}
+catch (ex){} 
+try{
+	ctp::close(conn)
+}
+catch (ex){} 
+try{
+	undef(`marketDataTable, SHARED)
+}
+catch (ex){}
+try{
+	undef(`nonStreamTable, SHARED)
+}
+catch (ex){}
+try{
+	undef(`wrongSchemaTable1, SHARED)
+}
+catch (ex){}
+try{
+	undef(`wrongSchemaTable2, SHARED)
+}
+catch (ex){}
+try{
+	undef(`wrongSchemaTable3, SHARED)
+}
+catch (ex){}
+
+//----------------------------------------------------------------------------------
+// 这两个例子应该注释掉，不能测试，因为createIPCInMemoryTable这个功能没有。
+@testing:case="test_ctp_getSchema_connect_ConcatTime_true_output_to_ipc_table"
+try{ctp::close(handle);}catch(ex){}
+try{dropIPCInMemoryTable("ipc_table_t");}catch(ex){} 
+
+handle = ctp::connect(CtpIP, CtpPORT, dict(["ConcatTime"],[true]))
+schema = ctp::getSchema(handle, `marketData)
+ipc_table_t = createIPCInMemoryTable(1000000, "ipc_table_t", schema[`name], schema[`typeInt])
+assert 1, handle == stringFormat("ctp handle of %W:%i",CtpIP, CtpPORT) 
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20230816.csv")
+res = ctp::subscribe(handle, `marketData, ipc_table_t, ids);
+sleep(5000)
+assert 2, res == `success
+assert 3, size(ctp::getStatus(handle).ids) == 18696
+assert 4, size(ctp::getStatus(handle).subStatus) == 1
+assert 5, time(ipc_table_t[`UpdateTime]) + time(ipc_table_t[`UpdateMillisec]) == time(ipc_table_t[`tradeTime])
+job_id = submitJob("read_job","",get_IPC_table_data,"ipc_table_t")
+re = wait_read_job_successful(job_id)
+assert 6,re.size() > 0
+
+@testing:case = "test_ctp_subscribe_output_to_ipc_table"
+try{ctp::close(handle);}catch(ex){} 
+try{dropIPCInMemoryTable("ipc_table_t");}catch(ex){} 
+
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, `marketData)
+ctpTmpTable=streamTable(100:0, schema.name, schema.typeInt)
+
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20230816.csv")
+ipc_table_t = createIPCInMemoryTable(1000000, "ipc_table_t", schema[`name], schema[`typeInt])
+ctp::subscribe(handle, "marketData", ipc_table_t, ids)
+
+job_id = submitJob("read_job","",get_IPC_table_data,"ipc_table_t")
+re = wait_read_job_successful(job_id)
+assert 1,re.size() > 0
+
+re = select * from ctp::getStatus(handle).subStatus where topicName  = "marketData"
+assert 3,re.failedMsgCount[0] == 0
+assert 4, ctp::getStatus(handle).ids.size() > 0
+re = ctp::unsubscribe(handle, `marketData,ids)
+assert 5, re=='success'
+assert 6, ctp::getStatus(handle).ids.size() == 0
+ctp::close(handle)
+//----------------------------------------------------------------------------------------------
+// 新增测试用例
+// 数据正确性与完整性校验组 (Data Integrity Check)
+// 检查核心接口返回的数据是否存在空值 (NULL) 或异常值
+//----------------------------------------------------------------------------------------------
+@testing:case="test_ctp_getSchema_data_check"
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, `marketData)
+// 1. 确保获取到了 schema
+assert 1, size(schema) > 0
+// 2. 检查核心字段：列名、类型字符串、类型枚举不能出现空值 (NULL)
+invalidCount = exec count(*) from schema where isNull(name) or isNull(typeString) or isNull(typeInt)
+assert 2, invalidCount == 0
+ctp::close(handle)
+
+@testing:case="test_ctp_getStatus_data_check"
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+ctp::subscribe(handle, `marketData, marketDataTable, ids)
+// 等待几秒钟让后台处理订阅并生成状态
+sleep(3000) 
+status = ctp::getStatus(handle)
+subStatusTable = status[`subStatus]
+// 1. 确保 subStatus 表和 ids 列表不为空
+assert 1, size(subStatusTable) > 0
+assert 2, isNull(status[`ids]) == false
+// 2. 检查 subStatus 表里的核心字段不能有空值
+// 注意：lastErrMsg 和 lastFailedTimestamp 允许为空（如果没有发生过错误），但 topicName, startTime, processedMsgCount 必须有值
+invalidCount = exec count(*) from subStatusTable where isNull(topicName) or isNull(startTime) or isNull(processedMsgCount)
+assert 3, invalidCount == 0
+ctp::close(handle)
+
+@testing:case="test_ctp_subscribe_data_check"
+try{ctp::close(handle);}catch(ex){} 
+handle = ctp::connect(CtpIP, CtpPORT)
+schema = ctp::getSchema(handle, `marketData)
+share streamTable(100:0, schema.name, schema.typeInt) as marketDataTable
+ids = exec string(distinct_ids) from loadText(DATA_DIR+"/ids20260311.csv")
+sleep(1000)
+ctp::subscribe(handle, `marketData, marketDataTable, ids)
+// 等待 5 秒钟，让行情数据落入流表（注意：此用例必须在交易时间运行才会产生数据）
+sleep(5000) 
+// 1. 确保接收到了行情数据
+assert 1, size(marketDataTable) > 0
+// 2. 检查核心业务字段：合约ID、最新价、交易日、更新时间绝不允许有空值 (NULL)
+invalidCount = exec count(*) from marketDataTable where isNull(InstrumentID) or isNull(LastPrice) or isNull(ActionDay) or isNull(UpdateTime)
+assert 2, invalidCount == 0
+// 3. 检查数值异常：最新价不能是极大异常值（CTP在未开盘时经常推 1.797693E308），也不能为负数
+// 取决于测试环境，如果 SimNow 刚开盘有些无报价合约推极大值，可以根据业务需求适度放宽
+abnormalCount = exec count(*) from marketDataTable where LastPrice >= 1.797693E308 or LastPrice < 0
+assert 3, abnormalCount == 0
+ctp::close(handle)
+
+
+@testing:case="test_ctp_queryInstrument_data_check"
+// 使用 TD 交易账号的参数进行查询
+resTable = ctp::queryInstrument(queryInstrumentIp, queryInstrumentPort, qUserID, qPassword, qBrokerID, qAppID, qAuthCode)
+// 1. 确保成功查到了合约列表
+assert 1, size(resTable) > 0
+// 2. 检查核心字段：合约ID、交易所ID、合约乘数、最小变动价位 绝不允许出现空值 (NULL)
+invalidCount = exec count(*) from resTable where isNull(InstrumentID) or isNull(ExchangeID) or isNull(VolumeMultiple) or isNull(PriceTick)
+assert 2, invalidCount == 0
+// 3. 检查数值异常：合约乘数和最小变动价位必须严格大于 0
+abnormalCount = exec count(*) from resTable where VolumeMultiple <= 0 or PriceTick <= 0
+assert 3, abnormalCount == 0
